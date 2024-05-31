@@ -1,0 +1,104 @@
+package com.charter.oih.service.impl;
+
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.textract.TextractClient;
+import software.amazon.awssdk.services.textract.model.*;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class TextractKeyValueExtractor {
+    public static void main(String[] args) throws IOException {
+        String document = "C:\\Temp\\BackToSchool.PNG";
+        File file = new File(document);
+        FileInputStream inputStream = new FileInputStream(new File(document));
+        byte[] bytes = new byte[(int) file.length()];
+        inputStream.read(bytes);
+        inputStream.close();
+
+        Document document1 = Document.builder().bytes(SdkBytes.fromByteArray(bytes)).build();
+
+        List<FeatureType> featureTypes = new ArrayList<FeatureType>();
+        featureTypes.add(FeatureType.FORMS);
+        featureTypes.add(FeatureType.TABLES);
+        AnalyzeDocumentRequest request = AnalyzeDocumentRequest.builder().featureTypes(featureTypes).document(document1).build();
+
+        // Initialize the Textract client service
+        TextractClient textractClient = TextractClient.builder().region(Region.US_EAST_1).build();
+
+        AnalyzeDocumentResponse response = textractClient.analyzeDocument(request);
+        // Extract key-value pairs
+        Map<String, String> keyValuePairs = extractKeyValuePairs(response);
+        // Print key-value pairs
+        keyValuePairs.forEach((key, value) -> System.out.println(key + ": " + value));
+    }
+
+    private static Map<String, String> extractKeyValuePairs(AnalyzeDocumentResponse response) {
+        Map<String, Block> keyMap = new HashMap<>();
+        Map<String, Block> valueMap = new HashMap<>();
+        Map<String, Block> blockMap = new HashMap<>();
+        for (Block block : response.blocks()) {
+            String blockId = block.id();
+            blockMap.put(blockId, block);
+            if (block.blockType() == BlockType.KEY_VALUE_SET) {
+                for (Relationship relationship : block.relationships()) {
+                    if (relationship.type() == RelationshipType.CHILD) {
+                        for (String childId : relationship.ids()) {
+                            if (block.entityTypes().contains(EntityType.KEY)) {
+                                keyMap.put(childId, block);
+                            } else if (block.entityTypes().contains(EntityType.VALUE)) {
+                                valueMap.put(childId, block);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Map<String, String> keyValuePairs = new HashMap<>();
+        for (String keyId : keyMap.keySet()) {
+            Block keyBlock = keyMap.get(keyId);
+            String key = getText(keyBlock, blockMap);
+            for (Relationship relationship : keyBlock.relationships()) {
+                if (relationship.type() == RelationshipType.VALUE) {
+                    for (String valueId : relationship.ids()) {
+                        Block valueBlock = blockMap.get(valueId);
+                        for (Relationship valChildRelationship : valueBlock.relationships()) {
+                            if (valChildRelationship.type() == RelationshipType.CHILD) {
+                                for (String valueChildren : valChildRelationship.ids()) {
+                                    Block valueChildrenBlock = valueMap.get(valueChildren);
+                                    String value = getText(valueChildrenBlock, blockMap);
+                                    keyValuePairs.put(key, value);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return keyValuePairs;
+    }
+
+    private static String getText(Block block, Map<String, Block> blockMap) {
+        StringBuilder text = new StringBuilder();
+
+            for (Relationship relationship : block.relationships()) {
+                if (relationship.type() == RelationshipType.CHILD) {
+                    for (String childId : relationship.ids()) {
+                        Block childBlock = blockMap.get(childId);
+                        if (childBlock.blockType() == BlockType.WORD) {
+                            text.append(childBlock.text()).append(" ");
+                        } else if (childBlock.blockType() == BlockType.SELECTION_ELEMENT && childBlock.selectionStatus() == SelectionStatus.SELECTED) {
+                            text.append("X ");
+                        }
+                    }
+                }
+            }
+        return text.toString().trim();
+    }
+}
