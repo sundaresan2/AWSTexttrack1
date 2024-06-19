@@ -1,0 +1,547 @@
+package com.charter.oih.service.impl;
+
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.charter.oih.model.OAR;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.textract.TextractClient;
+import software.amazon.awssdk.services.textract.model.*;
+
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.text.DecimalFormat;
+import java.util.*;
+
+public class TextractExtractServiceImpl {
+    public OAR getText(MultipartFile file) throws IOException {
+        OAR oar = new OAR();
+        SdkBytes sourceBytes = SdkBytes.fromByteArray(file.getBytes());
+
+        AwsBasicCredentials awsCreds = AwsBasicCredentials.create("",
+                "");
+
+        AwsCredentialsProvider credentialsProvider = StaticCredentialsProvider.create(awsCreds);
+
+        AWSCredentials credentials = new BasicAWSCredentials("",
+                "");
+
+        TextractClient textractClient = TextractClient
+                .builder().credentialsProvider(credentialsProvider)
+                .region(Region.US_EAST_1).build();
+
+        //DeductDocumentText
+        Document myDoc = Document.builder().bytes(sourceBytes).build();
+
+        DetectDocumentTextRequest detectDocumentTextRequest = DetectDocumentTextRequest.builder().document(myDoc).build();
+
+        List<FeatureType> featureTypes = new ArrayList<FeatureType>();
+        featureTypes.add(FeatureType.FORMS);
+        featureTypes.add(FeatureType.TABLES);
+        featureTypes.add(FeatureType.LAYOUT);
+
+        AnalyzeDocumentRequest analyzeDocumentRequest = AnalyzeDocumentRequest.builder()
+                .featureTypes(featureTypes)
+                .document(myDoc)
+                .build();
+
+        AnalyzeDocumentResponse analyzeDocument = textractClient.analyzeDocument(analyzeDocumentRequest);
+        List<Block> docInfo = analyzeDocument.blocks();
+        Iterator<Block> blockIterator = docInfo.iterator();
+
+        while (blockIterator.hasNext()) {
+            Block block = blockIterator.next();
+            System.out.println("The block type is " + block.blockType().toString());
+        }
+
+        // Invoke the Detect operation.
+        DetectDocumentTextResponse textResponse = textractClient.detectDocumentText(detectDocumentTextRequest);
+        StringBuilder objective = new StringBuilder();
+        StringBuilder offers = new StringBuilder();
+        StringBuilder audience = new StringBuilder();
+        StringBuilder channels = new StringBuilder();
+        StringBuilder markets = new StringBuilder();
+        StringBuilder effectiveDates = new StringBuilder();
+
+        StringBuilder buisnessRules = new StringBuilder();
+        StringBuilder approvedBy = new StringBuilder();
+        StringBuilder approvedOn = new StringBuilder();
+        StringBuilder approvedby = new StringBuilder();
+        StringBuilder offersPricing = new StringBuilder();
+        StringBuilder summary = new StringBuilder();
+        StringBuilder offer = new StringBuilder();
+        StringBuilder legacyPricing = new StringBuilder();
+        StringBuilder eligibility = new StringBuilder();
+
+
+        StringBuilder date = new StringBuilder();
+        String blockText = null;
+        Boolean isTextObjective = Boolean.FALSE;
+        Boolean isTextOffers = Boolean.FALSE;
+        Boolean isTextAudience = Boolean.FALSE;
+        Boolean isTextChannels = Boolean.FALSE;
+        Boolean isTextMarkets = Boolean.FALSE;
+        Boolean isTextEffectiveDates = Boolean.FALSE;
+        Boolean isTextBusinessRules = Boolean.FALSE;
+        Boolean isTextApprovedBy = Boolean.FALSE;
+        Boolean isTextApprovedby = Boolean.FALSE;
+        Boolean isTextApprovedOn = Boolean.FALSE;
+        Boolean isTextDate = Boolean.FALSE;
+        Boolean isOffersPricing = Boolean.FALSE;
+        Boolean isSummary = Boolean.FALSE;
+        Boolean isOffer = Boolean.FALSE;
+        Boolean isLegacyPricing = Boolean.FALSE;
+        Boolean isEligibility = Boolean.FALSE;
+        Map<Integer, Float> levelCount = new LinkedHashMap();
+        int counter = 0;
+        Float parentLeftAxisRounded = null;
+        for (Block block : textResponse.blocks()) {
+            if (block.blockType().toString().equals("LINE")) {
+                blockText = block.text();
+                switch (blockText) {
+                    case "Objective":
+                        objective.append(blockText);
+                        objective.append(System.lineSeparator());
+                        isTextObjective = Boolean.TRUE;
+                        isTextOffers = Boolean.FALSE;
+                        isTextAudience = Boolean.FALSE;
+                        isTextChannels = Boolean.FALSE;
+                        isTextMarkets = Boolean.FALSE;
+                        isTextEffectiveDates = Boolean.FALSE;
+                        isTextBusinessRules = Boolean.FALSE;
+                        isTextApprovedBy = Boolean.FALSE;
+                        isTextApprovedby = Boolean.FALSE;
+                        isTextApprovedOn = Boolean.FALSE;
+                        isTextDate = Boolean.FALSE;
+                        break;
+                    case "Offer(s)":
+                        Float parentLeftAxis = block.geometry().boundingBox().left();
+                        //Rounded to two characters
+                        DecimalFormat df = new DecimalFormat("0.00");
+                        parentLeftAxisRounded = Float.parseFloat(df.format(parentLeftAxis));
+                        //parentLeftAxisRounded = Float.valueOf(String.format("%.1f", parentLeftAxis));
+                        levelCount.put(counter, parentLeftAxisRounded);
+                        offers.append(blockText);
+                        offers.append(System.lineSeparator());
+                        isTextObjective = Boolean.FALSE;
+                        isTextOffers = Boolean.TRUE;
+                        isTextAudience = Boolean.FALSE;
+                        isTextChannels = Boolean.FALSE;
+                        isTextMarkets = Boolean.FALSE;
+                        isTextEffectiveDates = Boolean.FALSE;
+                        isTextBusinessRules = Boolean.FALSE;
+                        isTextApprovedBy = Boolean.FALSE;
+                        isTextApprovedby = Boolean.FALSE;
+                        isTextApprovedOn = Boolean.FALSE;
+                        isTextDate = Boolean.FALSE;
+                        break;
+                    case "Audience":
+                        audience.append(blockText);
+                        audience.append(System.lineSeparator());
+                        isTextObjective = Boolean.FALSE;
+                        isTextOffers = Boolean.FALSE;
+                        isTextAudience = Boolean.TRUE;
+                        isTextChannels = Boolean.FALSE;
+                        isTextMarkets = Boolean.FALSE;
+                        isTextEffectiveDates = Boolean.FALSE;
+                        isTextBusinessRules = Boolean.FALSE;
+                        isTextApprovedBy = Boolean.FALSE;
+                        isTextApprovedby = Boolean.FALSE;
+                        isTextApprovedOn = Boolean.FALSE;
+                        isTextDate = Boolean.FALSE;
+                        break;
+                    case "Channels":
+                        channels.append(blockText);
+                        channels.append(System.lineSeparator());
+                        isTextObjective = Boolean.FALSE;
+                        isTextOffers = Boolean.FALSE;
+                        isTextAudience = Boolean.FALSE;
+                        isTextChannels = Boolean.TRUE;
+                        isTextMarkets = Boolean.FALSE;
+                        isTextEffectiveDates = Boolean.FALSE;
+                        isTextBusinessRules = Boolean.FALSE;
+                        isTextApprovedBy = Boolean.FALSE;
+                        isTextApprovedby = Boolean.FALSE;
+                        isTextApprovedOn = Boolean.FALSE;
+                        isTextDate = Boolean.FALSE;
+                        break;
+                    case "Markets":
+                        markets.append(blockText);
+                        markets.append(System.lineSeparator());
+                        isTextObjective = Boolean.FALSE;
+                        isTextOffers = Boolean.FALSE;
+                        isTextAudience = Boolean.FALSE;
+                        isTextChannels = Boolean.FALSE;
+                        isTextMarkets = Boolean.TRUE;
+                        isTextEffectiveDates = Boolean.FALSE;
+                        isTextBusinessRules = Boolean.FALSE;
+                        isTextApprovedBy = Boolean.FALSE;
+                        isTextApprovedby = Boolean.FALSE;
+                        isTextApprovedOn = Boolean.FALSE;
+                        isTextDate = Boolean.FALSE;
+                        break;
+                    case "Effective Dates":
+                        effectiveDates.append(blockText);
+                        effectiveDates.append(System.lineSeparator());
+                        isTextObjective = Boolean.FALSE;
+                        isTextOffers = Boolean.FALSE;
+                        isTextAudience = Boolean.FALSE;
+                        isTextChannels = Boolean.FALSE;
+                        isTextMarkets = Boolean.FALSE;
+                        isTextEffectiveDates = Boolean.TRUE;
+                        isTextBusinessRules = Boolean.FALSE;
+                        isTextApprovedBy = Boolean.FALSE;
+                        isTextApprovedby = Boolean.FALSE;
+                        isTextApprovedOn = Boolean.FALSE;
+                        isTextDate = Boolean.FALSE;
+                        break;
+                    case "Business Rules & Considerations":
+                        buisnessRules.append(blockText);
+                        buisnessRules.append(System.lineSeparator());
+                        isTextObjective = Boolean.FALSE;
+                        isTextOffers = Boolean.FALSE;
+                        isTextAudience = Boolean.FALSE;
+                        isTextChannels = Boolean.FALSE;
+                        isTextMarkets = Boolean.FALSE;
+                        isTextEffectiveDates = Boolean.FALSE;
+                        isTextBusinessRules = Boolean.TRUE;
+                        isTextApprovedBy = Boolean.FALSE;
+                        isTextApprovedby = Boolean.FALSE;
+                        isTextApprovedOn = Boolean.FALSE;
+                        isTextDate = Boolean.FALSE;
+                        break;
+                    case "Approved By":
+                        approvedby.append(blockText);
+                        approvedby.append(System.lineSeparator());
+                        isTextObjective = Boolean.FALSE;
+                        isTextOffers = Boolean.FALSE;
+                        isTextAudience = Boolean.FALSE;
+                        isTextChannels = Boolean.FALSE;
+                        isTextMarkets = Boolean.FALSE;
+                        isTextEffectiveDates = Boolean.FALSE;
+                        isTextBusinessRules = Boolean.FALSE;
+                        isTextApprovedBy = Boolean.TRUE;
+                        isTextApprovedby = Boolean.FALSE;
+                        isTextApprovedOn = Boolean.FALSE;
+                        isTextDate = Boolean.FALSE;
+                        break;
+                    case "Approved On":
+                        approvedOn.append(blockText);
+                        approvedOn.append(System.lineSeparator());
+                        isTextObjective = Boolean.FALSE;
+                        isTextOffers = Boolean.FALSE;
+                        isTextAudience = Boolean.FALSE;
+                        isTextChannels = Boolean.FALSE;
+                        isTextMarkets = Boolean.FALSE;
+                        isTextEffectiveDates = Boolean.FALSE;
+                        isTextBusinessRules = Boolean.FALSE;
+                        isTextApprovedBy = Boolean.FALSE;
+                        isTextApprovedby = Boolean.FALSE;
+                        isTextApprovedOn = Boolean.TRUE;
+                        isTextDate = Boolean.FALSE;
+                        break;
+                    case "Approved by":
+                        approvedby.append(blockText);
+                        approvedby.append(System.lineSeparator());
+                        isTextObjective = Boolean.FALSE;
+                        isTextOffers = Boolean.FALSE;
+                        isTextAudience = Boolean.FALSE;
+                        isTextChannels = Boolean.FALSE;
+                        isTextMarkets = Boolean.FALSE;
+                        isTextEffectiveDates = Boolean.FALSE;
+                        isTextBusinessRules = Boolean.FALSE;
+                        isTextApprovedBy = Boolean.FALSE;
+                        isTextApprovedby = Boolean.TRUE;
+                        isTextApprovedOn = Boolean.FALSE;
+                        isTextDate = Boolean.FALSE;
+                        break;
+                    case "Date":
+                        date.append(blockText);
+                        date.append(System.lineSeparator());
+                        isTextObjective = Boolean.FALSE;
+                        isTextOffers = Boolean.FALSE;
+                        isTextAudience = Boolean.FALSE;
+                        isTextChannels = Boolean.FALSE;
+                        isTextMarkets = Boolean.FALSE;
+                        isTextEffectiveDates = Boolean.FALSE;
+                        isTextBusinessRules = Boolean.FALSE;
+                        isTextApprovedBy = Boolean.FALSE;
+                        isTextApprovedby = Boolean.FALSE;
+                        isTextApprovedOn = Boolean.FALSE;
+                        isTextDate = Boolean.TRUE;
+                        break;
+                    case "Offers/Pricing":
+                        offersPricing.append(blockText);
+                        offersPricing.append(System.lineSeparator());
+                        isTextObjective = Boolean.FALSE;
+                        isTextOffers = Boolean.FALSE;
+                        isTextAudience = Boolean.FALSE;
+                        isTextChannels = Boolean.FALSE;
+                        isTextMarkets = Boolean.FALSE;
+                        isTextEffectiveDates = Boolean.FALSE;
+                        isTextBusinessRules = Boolean.FALSE;
+                        isTextApprovedBy = Boolean.FALSE;
+                        isTextApprovedby = Boolean.FALSE;
+                        isTextApprovedOn = Boolean.FALSE;
+                        isTextDate = Boolean.FALSE;
+                        isOffersPricing = Boolean.TRUE;
+                        isSummary = Boolean.FALSE;
+                        isOffer = Boolean.FALSE;
+                        isLegacyPricing = Boolean.FALSE;
+                        isEligibility = Boolean.FALSE;
+                        break;
+                    case "Summary":
+                        summary.append(blockText);
+                        summary.append(System.lineSeparator());
+                        offersPricing.append(blockText);
+                        offersPricing.append(System.lineSeparator());
+                        isTextObjective = Boolean.FALSE;
+                        isTextOffers = Boolean.FALSE;
+                        isTextAudience = Boolean.FALSE;
+                        isTextChannels = Boolean.FALSE;
+                        isTextMarkets = Boolean.FALSE;
+                        isTextEffectiveDates = Boolean.FALSE;
+                        isTextBusinessRules = Boolean.FALSE;
+                        isTextApprovedBy = Boolean.FALSE;
+                        isTextApprovedby = Boolean.FALSE;
+                        isTextApprovedOn = Boolean.FALSE;
+                        isTextDate = Boolean.FALSE;
+                        isOffersPricing = Boolean.FALSE;
+                        isSummary = Boolean.TRUE;
+                        isOffer = Boolean.FALSE;
+                        isLegacyPricing = Boolean.FALSE;
+                        isEligibility = Boolean.FALSE;
+                        break;
+                    case "Offer":
+                        offer.append(blockText);
+                        offer.append(System.lineSeparator());
+                        isTextObjective = Boolean.FALSE;
+                        isTextOffers = Boolean.FALSE;
+                        isTextAudience = Boolean.FALSE;
+                        isTextChannels = Boolean.FALSE;
+                        isTextMarkets = Boolean.FALSE;
+                        isTextEffectiveDates = Boolean.FALSE;
+                        isTextBusinessRules = Boolean.FALSE;
+                        isTextApprovedBy = Boolean.FALSE;
+                        isTextApprovedby = Boolean.FALSE;
+                        isTextApprovedOn = Boolean.FALSE;
+                        isTextDate = Boolean.FALSE;
+                        isOffersPricing = Boolean.FALSE;
+                        isSummary = Boolean.FALSE;
+                        isOffer = Boolean.TRUE;
+                        isLegacyPricing = Boolean.FALSE;
+                        isEligibility = Boolean.FALSE;
+                        break;
+                    case "Legacy Pricing":
+                        legacyPricing.append(blockText);
+                        legacyPricing.append(System.lineSeparator());
+                        isTextObjective = Boolean.FALSE;
+                        isTextOffers = Boolean.FALSE;
+                        isTextAudience = Boolean.FALSE;
+                        isTextChannels = Boolean.FALSE;
+                        isTextMarkets = Boolean.FALSE;
+                        isTextEffectiveDates = Boolean.FALSE;
+                        isTextBusinessRules = Boolean.FALSE;
+                        isTextApprovedBy = Boolean.FALSE;
+                        isTextApprovedby = Boolean.FALSE;
+                        isTextApprovedOn = Boolean.FALSE;
+                        isTextDate = Boolean.FALSE;
+                        isOffersPricing = Boolean.FALSE;
+                        isSummary = Boolean.FALSE;
+                        isOffer = Boolean.FALSE;
+                        isLegacyPricing = Boolean.TRUE;
+                        isEligibility = Boolean.FALSE;
+                        break;
+                    case "Eligibility":
+                        eligibility.append(blockText);
+                        eligibility.append(System.lineSeparator());
+                        legacyPricing.append(blockText);
+                        legacyPricing.append(System.lineSeparator());
+                        isTextObjective = Boolean.FALSE;
+                        isTextOffers = Boolean.FALSE;
+                        isTextAudience = Boolean.FALSE;
+                        isTextChannels = Boolean.FALSE;
+                        isTextMarkets = Boolean.FALSE;
+                        isTextEffectiveDates = Boolean.FALSE;
+                        isTextBusinessRules = Boolean.FALSE;
+                        isTextApprovedBy = Boolean.FALSE;
+                        isTextApprovedby = Boolean.FALSE;
+                        isTextApprovedOn = Boolean.FALSE;
+                        isTextDate = Boolean.FALSE;
+                        isOffersPricing = Boolean.FALSE;
+                        isSummary = Boolean.FALSE;
+                        isOffer = Boolean.FALSE;
+                        isLegacyPricing = Boolean.FALSE;
+                        isEligibility = Boolean.TRUE;
+                        break;
+                    default: {
+                        if (isTextObjective) {
+                            objective.append(blockText);
+                            objective.append(System.lineSeparator());
+                            oar.setObjective(objective.toString());
+                            break;
+                        } else if (isTextOffers) {
+                            Float childLeftAxis = block.geometry().boundingBox().left();
+                            //Rounded to two characters
+                            DecimalFormat df1 = new DecimalFormat("0.00");
+                            Float childLeftAxisRounded = Float.parseFloat(df1.format(childLeftAxis));
+                            //Float childLeftAxisRounded = Float.valueOf(String.format("%.1f", childLeftAxis));
+                            if (childLeftAxisRounded > parentLeftAxisRounded) {
+                                Iterator<Integer> iterator = levelCount.keySet().iterator();
+                                boolean exit = true;
+                                while (iterator.hasNext()) {
+                                    Integer counter1 = iterator.next();
+                                    if (childLeftAxisRounded.equals(levelCount.get(counter1))) {
+                                        for (int i = 1; i <= counter1; i++) {
+                                            offers.append(" ");
+                                        }
+                                        exit = false;
+                                        break;
+                                    }
+                                }
+                                if (exit) {
+                                    counter = counter + 1;
+                                    levelCount.put(counter, childLeftAxisRounded);
+                                    for (int i = 1; i <= counter; i++) {
+                                        offers.append(" ");
+                                    }
+                                }
+                                offers.append(blockText);
+                                parentLeftAxisRounded = childLeftAxisRounded;
+                            } else if (childLeftAxisRounded.equals(parentLeftAxisRounded)) {
+                                Iterator<Integer> iterator = levelCount.keySet().iterator();
+                                boolean exit = true;
+                                while (iterator.hasNext()) {
+                                    Integer counter1 = iterator.next();
+                                    if (childLeftAxisRounded.equals(levelCount.get(counter1))) {
+                                        for (int i = 1; i <= counter1; i++) {
+                                            offers.append(" ");
+                                        }
+                                        exit = false;
+                                        break;
+                                    }
+                                }
+                                if (exit) {
+                                    for (int i = 1; i <= counter; i++) {
+                                        offers.append(" ");
+                                    }
+                                }
+                                offers.append(blockText);
+                            } else if (childLeftAxisRounded < parentLeftAxisRounded) {
+                                Iterator<Integer> iterator = levelCount.keySet().iterator();
+                                while (iterator.hasNext()) {
+                                    Integer counter1 = iterator.next();
+                                    if (childLeftAxisRounded.equals(levelCount.get(counter1))) {
+                                        for (int i = 1; i <= counter1; i++) {
+                                            offers.append(" ");
+                                        }
+                                        break;
+                                    }
+                                }
+                                offers.append(blockText);
+                                parentLeftAxisRounded = childLeftAxisRounded;
+                            }
+                            offers.append(System.lineSeparator());
+                            oar.setOffers(offers.toString());
+                            break;
+                        } else if (isTextAudience) {
+                            audience.append(blockText);
+                            audience.append(System.lineSeparator());
+                            oar.setAudience(audience.toString());
+                            break;
+                        } else if (isTextChannels) {
+                            channels.append(blockText);
+                            channels.append(System.lineSeparator());
+                            oar.setChannels(channels.toString());
+                            break;
+                        } else if (isTextMarkets) {
+                            markets.append(blockText);
+                            markets.append(System.lineSeparator());
+                            oar.setMarkets(markets.toString());
+                            break;
+                        } else if (isTextEffectiveDates) {
+                            effectiveDates.append(blockText);
+                            effectiveDates.append(System.lineSeparator());
+                            oar.setEffectiveDates(effectiveDates.toString());
+                            break;
+                        } else if (isTextBusinessRules) {
+                            buisnessRules.append(blockText);
+                            buisnessRules.append(System.lineSeparator());
+                            oar.setBusinessRules(buisnessRules.toString());
+                            break;
+                        } else if (isTextApprovedBy) {
+                            approvedBy.append(blockText);
+                            approvedBy.append(System.lineSeparator());
+                            oar.setRulesApprovedBy(approvedBy.toString());
+                            break;
+                        } else if (isTextApprovedby) {
+                            approvedby.append(blockText);
+                            approvedby.append(System.lineSeparator());
+                            oar.setOarApprovedby(approvedby.toString());
+                            break;
+                        } else if (isTextApprovedOn) {
+                            approvedOn.append(blockText);
+                            approvedOn.append(System.lineSeparator());
+                            oar.setOarApprovedOn(approvedOn.toString());
+                            break;
+                        } else if (isTextDate) {
+                            date.append(blockText);
+                            date.append(System.lineSeparator());
+                            oar.setOarDate(date.toString());
+                            break;
+                        } else if (isOffersPricing) {
+                            offersPricing.append(blockText);
+                            offersPricing.append(System.lineSeparator());
+                            oar.setOarDate(date.toString());
+                            break;
+                        } else if (isSummary) {
+                            summary.append(blockText);
+                            summary.append(System.lineSeparator());
+                            oar.setSummary(date.toString());
+                            break;
+                        } else if (isOffer) {
+                            offer.append(blockText);
+                            offer.append(System.lineSeparator());
+                            oar.setOffer(date.toString());
+                            break;
+                        } else if (isLegacyPricing) {
+                            legacyPricing.append(blockText);
+                            legacyPricing.append(System.lineSeparator());
+                            oar.setLegacyPricing(legacyPricing.toString());
+                            break;
+                        } else if (isEligibility) {
+                            eligibility.append(blockText);
+                            eligibility.append(System.lineSeparator());
+                            oar.setEligibility(date.toString());
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        System.out.println(objective.toString());
+        System.out.println(offers.toString());
+        System.out.println(audience.toString());
+        System.out.println(channels.toString());
+        System.out.println(markets.toString());
+        System.out.println(effectiveDates.toString());
+        System.out.println(buisnessRules.toString());
+        System.out.println(approvedBy.toString());
+        System.out.println(approvedOn.toString());
+        System.out.println(approvedby.toString());
+        System.out.println(date.toString());
+        return oar;
+    }
+
+    private void generateImageFromPDF(String filename, String extension) {
+    }
+}
+
+
+
